@@ -1,60 +1,98 @@
-#include "llvm/Analysis/BlockFrequencyInfo.h"
-#include "llvm/Analysis/BranchProbabilityInfo.h"
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/LoopIterator.h"
-#include "llvm/Analysis/LoopPass.h"
-#include "llvm/IR/CFG.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/IR/Type.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Scalar/LoopPassManager.h"
-#include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/Transforms/Utils/LoopUtils.h"
-#include "llvm/Transforms/Utils/SSAUpdater.h"
+#include "llvm/IR/Function.h"
+
+#include <fstream>
+#include <string>
+#include "json.hpp"
+
+#include "SlackEnergyPass.h"   // <-- correct include
 
 using namespace llvm;
+using nlohmann_json = nlohmann::json;
 
-namespace
-{
-    struct SlackPass : public PassInfoMixin<SlackPass>
+namespace {
+
+class SlackPass : public PassInfoMixin<SlackPass> {
+    std::string MCADir = "../benchmarks/mca/";
+
+    bool loadMCA(const std::string &Path,
+                 double &TotalCycles,
+                 double &RegDepCycles)
     {
-        PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM)
-        {
-            llvm::BlockFrequencyAnalysis::Result &bfi = FAM.getResult<BlockFrequencyAnalysis>(F);
-            llvm::BranchProbabilityAnalysis::Result &bpi = FAM.getResult<BranchProbabilityAnalysis>(F);
-            llvm::LoopAnalysis::Result &li = FAM.getResult<LoopAnalysis>(F);
-            /* *******Implementation Starts Here******* */
-            // This is a bonus. You do not need to attempt this to receive full credit.
-            /* *******Implementation Ends Here******* */
+        std::ifstream f(Path);
+        if (!f.is_open())
+            return false;
 
-            // Your pass is modifying the source code. Figure out which analyses
-            // are preserved and only return those, not all.
-            return PreservedAnalyses::none();
+        nlohmann_json j;
+        f >> j;
+
+        auto &BA = j["CodeRegions"][0]["BottleneckAnalysis"];
+        TotalCycles  = BA["TotalCycles"];
+        RegDepCycles = BA["RegisterDependencyCycles"];
+        return true;
+    }
+
+public:
+    PreservedAnalyses run(Function &F,
+                          FunctionAnalysisManager &) 
+    {
+        std::string FN = F.getName().str();
+
+        // Ignore main()
+        if (FN == "main")
+            return PreservedAnalyses::all();
+
+        std::string Path = MCADir + FN + "_mca.json";
+
+        double Cyc = 0, Reg = 0;
+        if (!loadMCA(Path, Cyc, Reg)) {
+            errs() << "[SlackPass] JSON missing for " << FN
+                   << " (expected " << Path << ")\n";
+            return PreservedAnalyses::all();
         }
-    };
-}
 
-// Code from HW2 to register pass with llvm
-extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK llvmGetPassPluginInfo()
-{
+        double DDR = Reg / Cyc;
+        bool MB = (DDR < 0.5);
+        const char *Label = MB ? "MEMORY_BOUND" : "COMPUTE_BOUND";
+
+        outs() << "[SlackPass] " << FN
+               << " DDR=" << DDR
+               << " → " << Label << "\n";
+
+        F.addFnAttr("SlackClass", Label);
+
+        return PreservedAnalyses::none();
+    }
+};
+
+} // namespace
+
+// Plugin entry point – ONLY here
+extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK
+llvmGetPassPluginInfo() {
     return {
-        LLVM_PLUGIN_API_VERSION, "Slack", "v0.1",
-        [](PassBuilder &PB)
-        {
+        LLVM_PLUGIN_API_VERSION, "Slack", "v1.0",
+        [](PassBuilder &PB) {
             PB.registerPipelineParsingCallback(
-                [](StringRef Name, FunctionPassManager &FPM,
+                [](StringRef Name,
+                   FunctionPassManager &FPM,
                    ArrayRef<PassBuilder::PipelineElement>)
                 {
                     if (Name == "slack-pass") {
                         FPM.addPass(SlackPass());
                         return true;
                     }
+
+                    if (Name == "slack-energy") {
+                        FPM.addPass(SlackEnergyPass());
+                        return true;
+                    }
+
                     return false;
                 });
-        }};
+        }
+    };
 }
