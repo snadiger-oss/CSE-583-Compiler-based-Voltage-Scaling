@@ -26,7 +26,7 @@ opt -load-pass-plugin ../build/custom_passes/Slack/Slack.so \
     -S test.ll -o instrumented.ll
 
 clang -c instrumented.ll -o instrumented.o
-clang instrumented.o dvfs_runtime.o -o dvfs_test
+clang++ instrumented.o dvfs_runtime.o -o dvfs_test
 ./dvfs_test
 
 rm dvfs_test *.ll *.o *.s
