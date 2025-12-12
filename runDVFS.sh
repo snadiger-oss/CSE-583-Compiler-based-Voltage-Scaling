@@ -20,8 +20,9 @@ opt \
 cd ../benchmarks
 
 clang -c ../runtime/dvfs_runtime.c -o dvfs_runtime.o
-opt -load-pass-plugin ../build/custom_passes/DVFS/DVFS.so \
-    -passes=DVFS \
+opt -load-pass-plugin ../build/custom_passes/Slack/Slack.so \
+    -load-pass-plugin ../build/custom_passes/DVFS/DVFS.so \
+    -passes="slack-pass,DVFS,slack-energy" \
     -S test.ll -o instrumented.ll
 
 clang -c instrumented.ll -o instrumented.o

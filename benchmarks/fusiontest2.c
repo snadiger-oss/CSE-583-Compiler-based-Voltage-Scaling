@@ -1,14 +1,23 @@
 #include <stdio.h>
 
-int main() {
+__attribute__((noinline))
+void run()
+{
     int a[1000], b[1000];
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 1000; ++i)
+    {
         a[i] = i * i;
     }
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 1000; ++i)
+    {
         b[i] = a[999 - i] / 2;
     }
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 1000; ++i)
+    {
         printf("%d %d\n", a[i], b[i]);
     }
+}
+
+int main() {
+    run();
 }

@@ -141,6 +141,7 @@ namespace
                             llvm::GetElementPtrInst* gep = nullptr;
                             if (gep = llvm::dyn_cast<llvm::GetElementPtrInst>(ptr->getPointerOperand()))
                             {
+                                errs() << "First loop stores at " << *gep << '\n';
                                 gepstores.push_back(ptr);
                             } else{
                                 nongepstores.push_back(ptr);
@@ -164,6 +165,7 @@ namespace
                             {
                                 for (auto &i : gepstores)
                                 {
+                                    errs() << "Second loop loads at " << *gep << '\n';
                                     auto first_gep = llvm::dyn_cast<llvm::GetElementPtrInst>(i->getPointerOperand());
                                     llvm::LoadInst* fload_ptr = nullptr;
                                     llvm::SExtInst* fsext_ptr = nullptr;
@@ -173,11 +175,13 @@ namespace
                                     {
                                         if(!(fsext_ptr = llvm::dyn_cast<llvm::SExtInst>(first_gep->getOperand(2))))
                                         {
+                                            errs() << "Loop1 operand does pointer arithmetic 64 bit\n";
                                             dependent_on_completion = true;
                                             break;
                                         }
                                         if (!(fload_ptr = llvm::dyn_cast<llvm::LoadInst>(fsext_ptr->getOperand(0))))
                                         {
+                                            errs() << "Loop1 operand does pointer arithmetic 32 bit\n";
                                             dependent_on_completion = true;
                                             break;
                                         }
@@ -186,17 +190,20 @@ namespace
                                     {
                                         if (!(ssext_ptr = llvm::dyn_cast<llvm::SExtInst>(gep->getOperand(2))))
                                         {
+                                            errs() << "Loop2 operand does pointer arithmetic 64 bit\n";
                                             dependent_on_completion = true;
                                             break;
                                         }
                                         if (!(sload_ptr = llvm::dyn_cast<llvm::LoadInst>(ssext_ptr->getOperand(0))))
                                         {
+                                            errs() << "Loop2 operand does pointer arithmetic 32 bit\n";
                                             dependent_on_completion = true;
                                             break;
                                         }
                                     }
                                     if (fload_ptr->getPointerOperand() != iterators[loop.first].ptr || sload_ptr->getPointerOperand() != iterators[fusable].ptr)
                                     {
+                                        errs() << "GetPointerInst relies on value that is not loop's iterator\n";
                                         dependent_on_completion = true;
                                         break;
                                     }
@@ -209,6 +216,7 @@ namespace
                                 {
                                     if (ptr->getPointerOperand() == i->getPointerOperand())
                                     {
+                                        errs() << "Load in second loop depends on non-array store in first\n";
                                         dependent_on_completion = true;
                                         break;
                                     }
@@ -226,8 +234,10 @@ namespace
                     auto branch = llvm::dyn_cast<BranchInst>(term);
                     if (branch->isConditional())
                         continue;
+                    errs() << "Successor: " << branch->getSuccessor(0) << " Fusee: " << fusable->getLoopLatch() << '\n';
                     if (branch->getSuccessor(0) == fusable->getLoopLatch())
                     {
+                        errs() << "Basic block in loop 2 now points to " << loop.first->getLoopLatch() << *loop.first->getLoopLatch() << '\n';
                         branch->setOperand(0, loop.first->getLoopLatch());
                     }
                 }
