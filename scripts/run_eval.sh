@@ -14,13 +14,11 @@ echo
 for f in _Z12memory_boundP4Nodei _Z13compute_boundfi _Z13streaming_memPfi _Z11mixed_boundP4Nodefi; do
   echo "Function: $f"
 
-  # Slack classification (take last occurrence)
+  # Slack classification
   grep -a "^\[SlackPass\] $f" "$TXT" | tail -n 1
 
-  # DVFS decision (take last occurrence)
+  # DVFS decision
   grep -a "^\[DVFSPass\] $f" "$TXT" | tail -n 1
-
-  # Extract the SlackEnergy report block for this function and pull Energy saved
     awk -v target="$f" '
     $0 ~ /^===== SlackEnergy Report =====/ {inrep=1; cur=""}
     inrep && $0 ~ /^Function[[:space:]]*:/ {cur=$0}
@@ -32,7 +30,5 @@ for f in _Z12memory_boundP4Nodei _Z13compute_boundfi _Z13streaming_memPfi _Z11mi
   echo
 done
 
-
-# Runtime DVFS prints (proof it actually scaled)
 echo "Runtime DVFS events:"
 grep -a "^\[DVFS\]" "$TXT" || true
