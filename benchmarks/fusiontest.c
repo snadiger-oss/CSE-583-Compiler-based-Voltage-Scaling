@@ -1,0 +1,14 @@
+#include <stdio.h>
+
+int main() {
+    int a[1000], b[1000];
+    for (int i = 0; i < 1000; ++i) {
+        a[i] = i * i;
+    }
+    for (int i = 0; i < 1000; ++i) {
+        b[i] = a[i] / 2;
+    }
+    for (int i = 0; i < 1000; ++i) {
+        printf("%d %d\n", a[i], b[i]);
+    }
+}
